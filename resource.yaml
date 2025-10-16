@@ -1,0 +1,173 @@
+# Use AWS CloudFormation to deploy resources
+# ✅ Create an IAM Role with a policy that allows Glue, Step Functions, SQS, and SNS access
+# ✅ Create an AWS Glue Job for data processing
+# ✅ Set up an SQS Queue for message processing
+# ✅ Create an SNS Topic for notifications
+# ✅ Deploy an AWS Step Function with Steps: 
+# ●	Step-1: Start
+# ●	Step-2: to trigger a Glue Job
+# ●	Step-3: to trigger a SQS Queue
+# ●	Step-4: to trigger a SNS Topic
+# ●	Step-5: Stop
+# Note: Create a GitHub Project and Push your code in your github project and take screenshot for answers.
+
+
+Parameters:
+  IAMRoleName:
+    Type: String
+    Default: "MyIAMRole"
+    Description: Name of the IAM Role
+  GlueJobName:
+    Type: String
+    Default: "MyGlueJob"
+    Description: Name of the Glue Job
+  GlueVersion:
+    Type: String
+    Default: "2.0"
+    AllowedValues:
+      - "0.9"
+      - "1.0"
+      - "2.0"
+    Description: Glue version for the job
+  NumberOfWorkers:
+    Type: Number
+    Default: 2
+    Description: Number of workers for Glue job
+  WorkerType:
+    Type: String
+    Default: "G.1X"
+    AllowedValues:
+      - "Standard"
+      - "G.1X"
+      - "G.2X"
+    Description: Worker type for Glue job
+  SQSQueueName:
+    Type: String
+    Default: "MySQSQueue"
+    Description: Name of the SQS Queue
+  SNSTopicName:
+    Type: String
+    Default: "MySNSTopic"
+    Description: Name of the SNS Topic
+  CommandName:
+    Type: String
+    Default: "glueetl"
+    Description: Name of the Glue Job command
+
+Resources:
+  MyIAMRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      RoleName: !Ref IAMRoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+                - states.amazonaws.com
+                - sqs.amazonaws.com
+                - sns.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: "MyPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - glue:*
+                  - states:*
+                  - sqs:*
+                  - sns:*
+                Resource: "*"
+
+  MyGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: !Ref GlueJobName
+      Role: !Ref MyIAMRole
+      Command:
+        Name: !Ref CommandName
+        ScriptLocation: "s3://metroc-terraform-2024/my-etl-script.py"
+      GlueVersion: !Ref GlueVersion
+      NumberOfWorkers: !Ref NumberOfWorkers
+      WorkerType: !Ref WorkerType
+
+  MySQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref SQSQueueName
+
+  MySNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Ref SNSTopicName
+
+  MyStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      RoleArn: !GetAtt MyIAMRole.Arn
+      DefinitionString: !Sub
+        - |
+          {
+            "Comment": "State Machine to trigger Glue, SQS, and SNS",
+            "StartAt": "Start",
+            "States": {
+              "Start": {
+                "Type": "Pass",
+                "Next": "TriggerGlueJob"
+              },
+              "TriggerGlueJob": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                "Parameters": {
+                  "JobName": "${GlueJobName}"
+                },
+                "Next": "TriggerSQSQueue"
+              },
+              "TriggerSQSQueue": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sqs:sendMessage",
+                "Parameters": {
+                  "QueueUrl": "${QueueUrl}",
+                  "MessageBody": "Message from Step Function"
+                },
+                "Next": "TriggerSNSTopic"
+              },
+              "TriggerSNSTopic": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn": "${TopicArn}",
+                  "Message": "Notification from Step Function"
+                },
+                "Next": "Stop"
+              },
+              "Stop": {
+                "Type": "Pass",
+                "End": true
+              }
+            }
+          }
+        - {
+            GlueJobName: !Ref MyGlueJob,
+            QueueUrl: !GetAtt MySQSQueue.QueueUrl,
+            TopicArn: !Ref MySNSTopic
+          }
+
+Outputs:
+  GlueJobName:
+    Description: Name of the Glue Job
+    Value: !Ref MyGlueJob
+  SQSQueueUrl:
+    Description: URL of the SQS Queue
+    Value: !GetAtt MySQSQueue.QueueUrl
+  SNSTopicArn:
+    Description: ARN of the SNS Topic
+    Value: !Ref MySNSTopic
+  StateMachineArn:
+    Description: ARN of the Step Function
+    Value: !Ref MyStateMachine
+
