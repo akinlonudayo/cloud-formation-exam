@@ -1,4 +1,8 @@
 Parameters:
+  InstanceName:
+        Type: String
+        Default: MyEC2Instance
+        Description: Enter the name of the EC2 instance.
   ImageId:
     Type: AWS::EC2::Image::Id
     Description: Enter the AMI ID to use for the EC2 instance.
@@ -14,5 +18,6 @@ Resources:
   MyEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
+      InstanceName: !Ref instanceName
       ImageId: !Ref ImageId
       InstanceType: !Ref InstanceType
