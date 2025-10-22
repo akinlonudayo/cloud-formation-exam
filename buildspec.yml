@@ -2,10 +2,15 @@ version: 0.2
 
 env:
   variables:
-    STACK_NAME: "application-ec2-stack"
+    STACK_NAME: "application-ec2-stack1"
     TEMPLATE_FILE: "ec2-template.yaml"
-    PARAMETERS: "ParameterKey=ImageId,ParameterValue=ami-03814457ed908d8f6 ParameterKey=InstanceName,ParameterValue=MyEC2Instance ParameterKey=InstanceType,ParameterValue=t3.micro"
-    ACTION: "deploy"
+    PARAMETERS: 
+                ParameterKey=EC2AMIID,ParameterValue=ami-03814457ed908d8f6
+                ParameterKey=EC2KeyPairName,ParameterValue=metrockpsep292025
+                ParameterKey=EC2InstanceType,ParameterValue=t3.micro 
+                ParameterKey=SubnetID,ParameterValue=subnet-00c87def2b5adf2e8
+                ParameterKey=SecurityGroupID,ParameterValue=sg-0bcdd6e5455396684
+            
 
 phases:
   install:
@@ -18,26 +23,26 @@ phases:
 
   pre_build:
     commands:
+      - echo "Checking AWS CLI version..."
+      - aws --version
       - echo "Validating CloudFormation template..."
-      - aws cloudformation validate-template --template-body file://$TEMPLATE_FILE
+      - aws cloudformation validate-template --template-body file://${TEMPLATE_FILE}
 
   build:
     commands:
-      - echo "Running build phase with ACTION=$ACTION..."
       - |
-        if [ "$ACTION" = "deploy" ]; then
+        if [ "$ACTION" == "deploy" ]; then
           echo "Deploying CloudFormation stack: $STACK_NAME..."
-          aws cloudformation deploy \
-            --stack-name "$STACK_NAME" \
-            --template-file "$TEMPLATE_FILE" \
-            --parameter-overrides $PARAMETERS \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-        elif [ "$ACTION" = "destroy" ]; then
-          echo "Deleting CloudFormation stack: $STACK_NAME..."
-          aws cloudformation delete-stack --stack-name "$STACK_NAME"
-          aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+          aws cloudformation deploy --stack-name $STACK_NAME --template-file ${TEMPLATE_FILE} --parameter-overrides $(echo "${PARAMETERS}" | tr '\n' ' ') --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+
+        elif [ "$ACTION" == "destroy" ]; then
+          echo "Destroying CloudFormation stack: $STACK_NAME..."
+          aws cloudformation delete-stack --stack-name $STACK_NAME
+          echo "Waiting for stack deletion to complete..."
+          aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+          
         else
-          echo "Invalid ACTION. Use 'deploy' or 'destroy'."
+          echo "Invalid ACTION parameter. Use 'deploy' or 'destroy'."
           exit 1
         fi
 

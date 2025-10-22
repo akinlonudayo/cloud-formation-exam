@@ -1,23 +1,57 @@
 Parameters:
-  InstanceName:
-        Type: String
-        Default: MyEC2Instance
-        Description: Enter the name of the EC2 instance.
-  ImageId:
-    Type: AWS::EC2::Image::Id
-    Description: Enter the AMI ID to use for the EC2 instance.
-    Default: ami-03814457ed908d8f6
-
-  InstanceType:
+  EC2AMIID:
     Type: String
+    Description: Enter your EC2 AMI ID based on your OS
+    Default: ami-03814457ed908d8f6
+  EC2KeyPairName:
+    Type: String
+    Description: Select your desired keypair
+    Default: metrockpsep292025
+  EC2InstanceType:
+    Type: String
+    Description: Enter your EC2 Instance Type
     Default: t3.micro
-    Description: Enter the EC2 instance type.
+    AllowedValues:  
+      - t3.micro
+      - t3.medium
+  SubnetID:
+    Type: String
+    Description: Enter your SubnetID
+    Default: subnet-00c87def2b5adf2e8
+  SecurityGroupID:
+    Type: String
+    Description: Enter your SecurityGroupID
+    Default: sg-0bcdd6e5455396684
+    
 
-
+  
 Resources:
-  MyEC2Instance:
+  MyEC2Instance: 
     Type: AWS::EC2::Instance
-    Properties:
-      InstanceName: !Ref InstanceName
-      ImageId: !Ref ImageId
-      InstanceType: !Ref InstanceType
+    Properties: 
+      ImageId: !Ref EC2AMIID
+      KeyName: !Ref EC2KeyPairName
+      InstanceType: !Ref EC2InstanceType
+      SecurityGroupIds: 
+        - !Ref SecurityGroupID
+      SubnetId: 
+        !Ref SubnetID
+      UserData:
+        Fn::Base64: !Sub |
+            #!/bin/bash
+            yum install httpd php php-mysql -y
+            sudo amazon-linux-extras enable php7.2
+            sudo yum clean metadata
+            sudo yum install php-cli php-fpm php-mysqlnd php-pdo php-mbstring
+            yum update -y
+            cd /var/www/html
+            echo "healthy" > healthy.html
+            wget https://wordpress.org/wordpress-6.7.1.tar.gz
+            tar -xzf wordpress-6.7.1.tar.gz
+            cp -r wordpress/* /var/www/html/
+            rm -rf wordpress
+            rm -rf wordpress-6.7.1.tar.gz
+            chmod -R 755 wp-content
+            chown -R apache:apache wp-content
+            service httpd start
+            chkconfig httpd on
