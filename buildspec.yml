@@ -3,7 +3,7 @@ version: 0.2
 env:
   variables:
     STACK_NAME: "application-ec2-stack"
-    TEMPLATE_FILE: "ec2.yaml"
+    TEMPLATE_FILE: "ec2-template.yaml"
     PARAMETERS: ParameterKey=ImageId,ParameterValue=ami-03814457ed908d8f6
                 ParameterKey=InstanceName,ParameterValue=MyEC2Instance 
                 ParameterKey=InstanceType,ParameterValue=t3.micro
