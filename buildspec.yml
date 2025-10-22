@@ -2,47 +2,47 @@ version: 0.2
 
 env:
   variables:
-    STACK_NAME: "EC2DeployStack"
-    TEMPLATE_FILE: "ec2-template.yaml"
-    REGION: "ca-central-1"
-    ACTION: "deploy"
+    STACK_NAME: "application-ec2-stack"
+    TEMPLATE_FILE: "ec2.yaml"
+    PARAMETERS: ParameterKey=ImageId,ParameterValue=ami-03814457ed908d8f6
+                ParameterKey=InstanceName,ParameterValue=MyEC2Instance 
+                ParameterKey=InstanceType,ParameterValue=t3.micro
+            
 
 phases:
   install:
-    runtime-versions:
-      python: latest
     commands:
-      - echo "Installing AWS CLI if needed..."
-      - pip install --upgrade awscli
+      - echo "Installing AWS CLI v2..."
+      - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+      - unzip awscliv2.zip
+      - sudo ./aws/install --update
+      - aws --version
 
   pre_build:
     commands:
-      - echo "Verifying CloudFormation template syntax..."
-      - aws cloudformation validate-template --template-body file://$TEMPLATE_FILE
-      - echo "Template validated successfully."
+      - echo "Checking AWS CLI version..."
+      - aws --version
+      - echo "Validating CloudFormation template..."
+      - aws cloudformation validate-template --template-body file://${TEMPLATE_FILE}
 
   build:
     commands:
-      - echo "Starting CloudFormation deployment..."
       - |
-        aws cloudformation deploy \
-          --stack-name $STACK_NAME \
-          --template-file $TEMPLATE_FILE \
-          --capabilities CAPABILITY_IAM \
-          --region $REGION \
-          --parameter-overrides \
-              InstanceName=$INSTANCE_NAME \
-              ImageId=$IMAGE_ID \
-              InstanceType=$INSTANCE_TYPE
-      - echo "Deployment action complete."
+        if [ "$ACTION" == "deploy" ]; then
+          echo "Deploying CloudFormation stack: $STACK_NAME..."
+          aws cloudformation deploy --stack-name $STACK_NAME --template-file ${TEMPLATE_FILE} --parameter-overrides $(echo "${PARAMETERS}" | tr '\n' ' ') --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+
+        elif [ "$ACTION" == "destroy" ]; then
+          echo "Destroying CloudFormation stack: $STACK_NAME..."
+          aws cloudformation delete-stack --stack-name $STACK_NAME
+          echo "Waiting for stack deletion to complete..."
+          aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+          
+        else
+          echo "Invalid ACTION parameter. Use 'deploy' or 'destroy'."
+          exit 1
+        fi
 
   post_build:
     commands:
-      - echo "Fetching deployment status..."
-      - aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION
-      - echo "Build phase completed successfully."
-
-artifacts:
-  files:
-    - '**/*'
-  discard-paths: yes
+      - echo "CloudFormation operation ($ACTION) completed successfully."
