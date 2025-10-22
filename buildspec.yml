@@ -29,11 +29,11 @@ phases:
   build:
     commands:
       - |
-        if [ "$ACTION" == "deploy" ]; then
+        if [ "$ACTION" = "deploy" ]; then
           echo "Deploying CloudFormation stack: $STACK_NAME..."
           aws cloudformation deploy --stack-name $STACK_NAME --template-file ${TEMPLATE_FILE} --parameter-overrides $(echo "${PARAMETERS}" | tr '\n' ' ') --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 
-        elif [ "$ACTION" == "destroy" ]; then
+        elif [ "$ACTION" = "destroy" ]; then
           echo "Destroying CloudFormation stack: $STACK_NAME..."
           aws cloudformation delete-stack --stack-name $STACK_NAME
           echo "Waiting for stack deletion to complete..."
